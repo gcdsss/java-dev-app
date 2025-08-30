@@ -1,0 +1,118 @@
+# 应用打包和运行时产生的文件
+*.jar
+*.war
+*.ear
+*.zip
+*.tar.gz
+*.rar
+
+# 避免提交打包后的可执行 JAR（通常由 Spring Boot Maven/Gradle 插件生成）
+target/
+build/
+!*.jar
+
+# 日志文件
+*.log
+logs/
+
+# 敏感配置文件（千万不要提交！）
+application.properties
+application.yml
+application-*.properties
+application-*.yml
+!/src/main/resources/application.properties.example # 示例文件可以提交
+!/src/main/resources/application.yml.example
+
+# 操作系统生成的文件
+.DS_Store
+.DS_Store?
+._*
+.Spotlight-V100
+.Trashes
+ehthumbs.db
+Thumbs.db
+
+# Maven 特定文件
+target/
+pom.xml.tag
+pom.xml.releaseBackup
+pom.xml.versionsBackup
+pom.xml.next
+release.properties
+dependency-reduced-pom.xml
+buildNumber.properties
+.mvn/timing.properties
+.mvn/wrapper/maven-wrapper.jar
+
+# Gradle 特定文件 (如果不用Gradle，可删除此块)
+.gradle/
+build/
+
+# 忽略所有 .class 文件（编译后的Java字节码）
+*.class
+
+# 但不要忽略包目录下的空占位文件
+!**/src/main/**/target/empty/
+!**/src/test/**/target/empty/
+
+# Eclipse IDE
+.settings/
+bin/
+*.tmp
+*.bak
+*.swp
+*~.nib
+local.properties
+.classpath
+.project
+.externalToolBuilders/
+*.launch
+
+# IntelliJ IDEA (JetBrains)
+.idea/
+*.iws
+*.iml
+*.ipr
+*.orig
+out/
+.idea_modules/
+atlassian-ide-plugin.xml
+
+# VS Code
+.vscode/
+
+# 单元测试报告
+**/target/surefire-reports/
+**/target/failsafe-reports/
+**/target/test-results/
+
+# 代码覆盖率报告（如 JaCoCo）
+**/target/jacoco.exec
+**/target/jacoco-reports/
+*.exec
+
+# 依赖下载（Maven本地仓库）
+# 注意：通常不提交，但一般也不忽略，因为它是全局的，不在项目目录内
+# .repository/
+
+# 环境相关的文件
+.env
+.env.local
+.env.development.local
+.env.test.local
+.env.production.local
+
+# MacOS
+.DS_Store?
+
+# Windows
+[Tt]humbs.db
+
+
+*.log
+logs/
+
+.env
+.env.local
+.env.development.local
+.env.test.local
