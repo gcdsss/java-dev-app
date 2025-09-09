@@ -1,0 +1,37 @@
+mode:
+  type: Standalone
+dataSources:
+  ds0: !!org.apache.commons.dbcp.BasicDataSource
+    driverClassName: com.mysql.jdbc.Driver
+    url: jdbc:mysql://192.168.1.46:3306/dev?serverTimezone=Asia/Shanghai&useSSL=false&characterEncoding=utf8&allowPublicKeyRetrieval=true&rewriteBatchedStatements=true&zeroDateTimeBehavior=convertToNull
+    username: root
+    password: mysql-dev
+    initialSize: 2
+    minIdle: 5
+    maxActive: 20
+    maxWait: 60000
+    validationQuery: SELECT 1
+    testWhileIdle: true
+    testOnBorrow: false
+    testOnReturn: false
+    filters: stat,wall,slf4j
+    timeBetweenLogStatsMillis: 10000
+    connectionProperties: druid.stat.mergeSql=true;druid.stat.slowSqlMillis=5000;zeroDateTimeBehavior=convertToNull
+
+rules:
+  - !SHARDING
+    tables: {}
+    defaultDatabaseStrategy:
+      hint:
+        shardingAlgorithmName: header_hint_db_algorithm
+    defaultTableStrategy:
+      none: {}
+    shardingAlgorithms:
+      header_hint_db_algorithm:
+        type: HINT_INLINE
+        props:
+          algorithm-expression: $->{value}
+
+props:
+  sql-show: true
+  sql-simple: false
