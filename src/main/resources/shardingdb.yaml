@@ -1,7 +1,7 @@
 mode:
   type: Standalone
 dataSources:
-  ds0: !!org.apache.commons.dbcp.BasicDataSource
+  ds0:
     driverClassName: com.mysql.jdbc.Driver
     url: jdbc:mysql://192.168.1.46:3306/dev?serverTimezone=Asia/Shanghai&useSSL=false&characterEncoding=utf8&allowPublicKeyRetrieval=true&rewriteBatchedStatements=true&zeroDateTimeBehavior=convertToNull
     username: root
@@ -19,7 +19,7 @@ dataSources:
     connectionProperties: druid.stat.mergeSql=true;druid.stat.slowSqlMillis=5000;zeroDateTimeBehavior=convertToNull
 
 rules:
-  - !SHARDING
+  - type: SHARDING
     tables: {}
     defaultDatabaseStrategy:
       hint:
