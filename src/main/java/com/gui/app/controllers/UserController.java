@@ -25,13 +25,11 @@ public class UserController {
     private UserService userService;
 
     @GetMapping("/user")
-    public List<User> getUser(@RequestParam Map<String, String> params, @RequestBody String rawBodyString) {
+    public Map<String, Object> getUser(@RequestParam(required = false) Map<String, String> params) {
         logger.info("getUser param: {}", params);
-        logger.info("getUser body: {}", rawBodyString);
 
         Map<String, Object> response = new HashMap<String, Object>();
         response.put("param", params);
-        response.put("body", rawBodyString);
 
         // 从数据库查询用户数据
         List<User> users = userService.getUserList();
@@ -39,7 +37,7 @@ public class UserController {
         response.put("total", users.size());
 
         logger.info("查询到用户数量: {}", users.size());
-        return users;
+        return response;
     }
 
     @PostMapping("/user")
