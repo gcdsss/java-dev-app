@@ -77,7 +77,7 @@ public class SqlMonitoringAspect {
             summaryData.put("totalRequestTime", requestEndTime - requestStartTime);
 
             // SQL执行统计
-            int totalSqlCount = sqlExecutions.size();
+            int totalSqlCount = 0;
             int successfulSqlCount = 0;
             int failedSqlCount = 0;
             long totalSqlExecutionTime = 0;
@@ -87,6 +87,14 @@ public class SqlMonitoringAspect {
             List<Map<String, Object>> sqlDetails = new ArrayList<>();
 
             for (SqlLoggingInterceptor.SqlExecutionInfo sqlInfo : sqlExecutions) {
+                // 跳过SELECT语句的记录
+                String sql = sqlInfo.getSql();
+                if (sql != null && sql.trim().toLowerCase().startsWith("select")) {
+                    continue;
+                }
+
+                totalSqlCount++;
+
                 if (sqlInfo.isSuccess()) {
                     successfulSqlCount++;
                 } else {
