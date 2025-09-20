@@ -28,7 +28,20 @@ services:
         max-file: "10"
     networks:
       - java-app-network
+  redis:
+    image: redis:7.4-alpine
+    container_name: my-redis-container
+    restart: always
+    ports:
+      - "6379:6379"
+    command: redis-server --requirepass your_strong_password --save 60 1
+    volumes:
+      - redis-data:/data
 
 networks:
   java-app-network:
     driver: bridge
+
+volumes:
+  redis-data:
+    driver: local

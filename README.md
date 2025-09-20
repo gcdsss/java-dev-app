@@ -428,6 +428,109 @@ SQL 监控功能对系统性能的影响很小：
 
 建议在生产环境中根据需要调整日志级别和监控范围。
 
+## Logstash 集成
+
+### 日志格式适配
+
+应用程序已经配置为与 Logstash 完美集成，支持：
+
+#### 1. 多种日志输出格式
+
+- **JSON 格式**：所有日志以 JSON 格式输出，便于 Logstash 解析
+- **分类输出**：不同类型的日志输出到不同文件
+  - `logs/application.log` - 应用主日志
+  - `logs/sql-monitoring.log` - SQL 监控专用日志
+  - `logs/http-requests.log` - HTTP 请求日志
+
+#### 2. Logstash 配置字段
+
+每条日志记录包含以下标准字段：
+
+```json
+{
+  "@timestamp": "2025-09-11T16:24:52.011917+08:00",
+  "@version": "1",
+  "message": "{...}",
+  "logger_name": "com.gui.app.interceptor.SqlLoggingInterceptor",
+  "thread_name": "http-nio-8000-exec-1",
+  "level": "INFO",
+  "level_value": 20000,
+  "app_name": "java-dev-app",
+  "environment": "dev",
+  "log_source": "sql_monitoring",
+  "log_category": "performance",
+  "requestId": "3b1bcd80-3481-4d19-a677-d341fcc3ced8",
+  "traceId": "3b1bcd80-3481-4d19-a677-d341fcc3ced8"
+}
+```
+
+#### 3. Logstash 配置文件
+
+项目提供了专门的 Logstash 配置文件：
+
+- `config/logstash.conf` - 通用 Logstash 配置
+- `config/sql-monitoring-logstash.conf` - SQL 监控专用配置
+
+#### 4. Elasticsearch 索引策略
+
+Logstash 会根据日志类型自动创建不同的索引：
+
+| 日志类型  | 索引名称                            | 说明                       |
+| --------- | ----------------------------------- | -------------------------- |
+| SQL 执行  | `sql-execution-logs-YYYY.MM.dd`     | 单条 SQL 执行记录          |
+| SQL 汇总  | `sql-summary-logs-YYYY.MM.dd`       | 请求级别 SQL 统计          |
+| HTTP 请求 | `http-requests-YYYY.MM.dd`          | HTTP 请求和响应            |
+| 慢 SQL    | `slow-sql-logs-YYYY.MM.dd`          | 执行时间超过 500ms 的 SQL  |
+| 慢请求    | `slow-requests-YYYY.MM.dd`          | 响应时间超过 1000ms 的请求 |
+| 错误日志  | `error-logs-YYYY.MM.dd`             | 所有错误和异常             |
+| 性能监控  | `performance-monitoring-YYYY.MM.dd` | 性能相关数据               |
+
+#### 5. 配置说明
+
+**application.properties 中的 Logstash 配置：**
+
+```properties
+# Logstash 相关配置
+logstash.destination=192.168.1.46:5000
+logstash.enabled=true
+spring.profiles.active=dev
+```
+
+**logback-spring.xml 中的关键配置：**
+
+- **TCP Appender**：直接发送日志到 Logstash
+- **文件 Appender**：本地文件备份，支持 Filebeat 采集
+- **分类 Logger**：不同类型日志使用不同的 Appender
+
+### 使用 Logstash 部署
+
+#### 1. 启动 Logstash
+
+```bash
+# 使用 SQL 监控专用配置
+logstash -f config/sql-monitoring-logstash.conf
+
+# 或使用通用配置
+logstash -f config/logstash.conf
+```
+
+#### 2. 环境变量配置
+
+```bash
+export ELASTICSEARCH_HOSTS="192.168.1.46:9200"
+export ELASTICSEARCH_USERNAME="elastic"
+export ELASTICSEARCH_PASSWORD="your_password"
+```
+
+#### 3. Kibana 可视化
+
+推荐创建以下 Dashboard：
+
+- **SQL 性能监控**：基于 `sql-execution-logs-*` 索引
+- **请求性能分析**：基于 `http-requests-*` 索引
+- **错误监控**：基于 `error-logs-*` 索引
+- **慢查询分析**：基于 `slow-sql-logs-*` 索引
+
 ## 扩展功能
 
 可以基于现有的 SQL 监控数据实现：
@@ -436,3 +539,4 @@ SQL 监控功能对系统性能的影响很小：
 - 🔔 **实时告警**：集成钉钉、企业微信等告警通道
 - 📊 **SQL 分析报告**：定期生成 SQL 性能分析报告
 - 🎯 **慢查询优化建议**：基于执行计划提供优化建议
+- 🔍 **ELK Stack 集成**：完整的日志收集、分析和可视化方案

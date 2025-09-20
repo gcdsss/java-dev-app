@@ -1,0 +1,137 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<configuration>
+    <include resource="org/springframework/boot/logging/logback/base.xml" />
+
+    <!-- 应用名称属性 -->
+    <springProperty scope="context" name="app.name" source="spring.application.name"
+        defaultValue="java-dev-app" />
+    <springProperty scope="context" name="app.env" source="spring.profiles.active"
+        defaultValue="dev" />
+
+    <!-- 文件日志 Appender -->
+    <appender name="FILE" class="ch.qos.logback.core.rolling.RollingFileAppender">
+        <file>logs/application.log</file>
+        <rollingPolicy class="ch.qos.logback.core.rolling.SizeAndTimeBasedRollingPolicy">
+            <fileNamePattern>logs/application.log.%d{yyyy-MM-dd}.%i.gz</fileNamePattern>
+            <maxFileSize>10MB</maxFileSize>
+            <maxHistory>30</maxHistory>
+            <totalSizeCap>1GB</totalSizeCap>
+        </rollingPolicy>
+        <encoder class="net.logstash.logback.encoder.LogstashEncoder">
+            <customFields>{"app_name":"${app.name}","environment":"${app.env}","log_source":"file"}</customFields>
+            <fieldNames>
+                <timestamp>@timestamp</timestamp>
+                <version>@version</version>
+                <level>level</level>
+                <thread>thread</thread>
+                <logger>logger_name</logger>
+                <message>message</message>
+            </fieldNames>
+            <includeContext>true</includeContext>
+            <includeMdc>true</includeMdc>
+        </encoder>
+    </appender>
+
+    <!-- Logstash TCP Appender -->
+    <appender name="LOGSTASH" class="net.logstash.logback.appender.LogstashTcpSocketAppender">
+        <destination>192.168.1.46:5000</destination>
+        <encoder charset="UTF-8" class="net.logstash.logback.encoder.LogstashEncoder">
+            <customFields>{"app_name":"${app.name}","environment":"${app.env}","log_source":"tcp"}</customFields>
+            <fieldNames>
+                <timestamp>@timestamp</timestamp>
+                <version>@version</version>
+                <level>level</level>
+                <thread>thread</thread>
+                <logger>logger_name</logger>
+                <message>message</message>
+            </fieldNames>
+            <includeContext>true</includeContext>
+            <includeMdc>true</includeMdc>
+        </encoder>
+        <!-- 连接超时配置 -->
+        <connectionTimeout>5000</connectionTimeout>
+        <!-- 重连配置 -->
+        <reconnectionDelay>1000</reconnectionDelay>
+    </appender>
+
+    <!-- 控制台 Appender，保持原有格式便于开发调试 -->
+    <appender name="CONSOLE" class="ch.qos.logback.core.ConsoleAppender">
+        <encoder>
+            <pattern>%d{yyyy-MM-dd HH:mm:ss.SSS} [%thread] %-5level [%X{requestId:-}] %logger{36} -
+                %msg%n</pattern>
+        </encoder>
+    </appender>
+
+    <!-- SQL 监控日志专用 Appender -->
+    <appender name="SQL_MONITORING" class="ch.qos.logback.core.rolling.RollingFileAppender">
+        <file>logs/sql-monitoring.log</file>
+        <rollingPolicy class="ch.qos.logback.core.rolling.SizeAndTimeBasedRollingPolicy">
+            <fileNamePattern>logs/sql-monitoring.log.%d{yyyy-MM-dd}.%i.gz</fileNamePattern>
+            <maxFileSize>50MB</maxFileSize>
+            <maxHistory>7</maxHistory>
+            <totalSizeCap>1GB</totalSizeCap>
+        </rollingPolicy>
+        <encoder class="net.logstash.logback.encoder.LogstashEncoder">
+            <customFields>
+                {"app_name":"${app.name}","environment":"${app.env}","log_source":"sql_monitoring","log_category":"performance"}</customFields>
+            <fieldNames>
+                <timestamp>@timestamp</timestamp>
+                <level>level</level>
+                <logger>logger_name</logger>
+                <message>message</message>
+            </fieldNames>
+            <includeContext>true</includeContext>
+            <includeMdc>true</includeMdc>
+        </encoder>
+    </appender>
+
+    <!-- HTTP 请求日志专用 Appender -->
+    <appender name="HTTP_REQUEST" class="ch.qos.logback.core.rolling.RollingFileAppender">
+        <file>logs/http-requests.log</file>
+        <rollingPolicy class="ch.qos.logback.core.rolling.SizeAndTimeBasedRollingPolicy">
+            <fileNamePattern>logs/http-requests.log.%d{yyyy-MM-dd}.%i.gz</fileNamePattern>
+            <maxFileSize>50MB</maxFileSize>
+            <maxHistory>7</maxHistory>
+            <totalSizeCap>1GB</totalSizeCap>
+        </rollingPolicy>
+        <encoder class="net.logstash.logback.encoder.LogstashEncoder">
+            <customFields>
+                {"app_name":"${app.name}","environment":"${app.env}","log_source":"http_requests","log_category":"access_log"}</customFields>
+            <fieldNames>
+                <timestamp>@timestamp</timestamp>
+                <level>level</level>
+                <logger>logger_name</logger>
+                <message>message</message>
+            </fieldNames>
+            <includeContext>true</includeContext>
+            <includeMdc>true</includeMdc>
+        </encoder>
+    </appender>
+
+    <!-- 特定 Logger 配置 -->
+    <logger name="com.gui.app.interceptor.SqlLoggingInterceptor" level="INFO" additivity="false">
+        <appender-ref ref="SQL_MONITORING" />
+        <appender-ref ref="LOGSTASH" />
+        <appender-ref ref="CONSOLE" />
+    </logger>
+
+    <logger name="com.gui.app.aspect.SqlMonitoringAspect" level="INFO" additivity="false">
+        <appender-ref ref="SQL_MONITORING" />
+        <appender-ref ref="LOGSTASH" />
+        <appender-ref ref="CONSOLE" />
+    </logger>
+
+    <logger name="HTTP_REQUEST_LOG" level="INFO" additivity="false">
+        <appender-ref ref="HTTP_REQUEST" />
+        <appender-ref ref="LOGSTASH" />
+        <appender-ref ref="CONSOLE" />
+    </logger>
+
+    <!-- 根 Logger 配置 -->
+    <root level="INFO">
+        <appender-ref ref="FILE" />
+        <appender-ref ref="LOGSTASH" />
+        <appender-ref ref="CONSOLE" />
+    </root>
+
+</configuration>
