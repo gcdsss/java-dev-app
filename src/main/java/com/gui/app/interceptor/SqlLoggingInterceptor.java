@@ -2,6 +2,8 @@ package com.gui.app.interceptor;
 
 import com.fasterxml.jackson.databind.ObjectMapper;
 import org.apache.ibatis.executor.statement.StatementHandler;
+import org.apache.ibatis.mapping.BoundSql;
+import org.apache.ibatis.mapping.ParameterMapping;
 import org.apache.ibatis.plugin.*;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
@@ -59,6 +61,9 @@ public class SqlLoggingInterceptor implements Interceptor {
             return invocation.proceed();
         }
 
+        // 将SQL中的占位符替换为实际参数值
+        String sqlWithValues = replaceSqlPlaceholders(statementHandler.getBoundSql());
+
         long startTime = System.currentTimeMillis();
         Object result = null;
         Exception exception = null;
@@ -75,7 +80,7 @@ public class SqlLoggingInterceptor implements Interceptor {
 
             // 记录SQL执行信息
             SqlExecutionInfo sqlInfo = new SqlExecutionInfo();
-            sqlInfo.setSql(cleanSql);
+            sqlInfo.setSql(sqlWithValues); // 使用带有实际值的SQL
             sqlInfo.setExecutionTime(executionTime);
             sqlInfo.setStartTime(startTime);
             sqlInfo.setEndTime(endTime);
@@ -135,6 +140,90 @@ public class SqlLoggingInterceptor implements Interceptor {
         }
 
         return result.toString();
+    }
+
+    /**
+     * 将SQL中的占位符替换为实际参数值
+     */
+    private String replaceSqlPlaceholders(BoundSql boundSql) {
+        String sql = boundSql.getSql();
+        List<ParameterMapping> parameterMappings = boundSql.getParameterMappings();
+        Object parameterObject = boundSql.getParameterObject();
+
+        if (parameterMappings == null || parameterMappings.isEmpty()) {
+            return sql;
+        }
+
+        try {
+            // 按参数在SQL中出现的顺序替换
+            for (int i = 0; i < parameterMappings.size(); i++) {
+                ParameterMapping parameterMapping = parameterMappings.get(i);
+                String propertyName = parameterMapping.getProperty();
+                Object value = getParameterValue(parameterObject, propertyName);
+
+                // 格式化参数值
+                String formattedValue = formatParameterValue(value);
+
+                // 替换第一个?为实际值
+                sql = sql.replaceFirst("\\?", formattedValue);
+            }
+        } catch (Exception e) {
+            logger.debug("Failed to replace SQL placeholders", e);
+        }
+
+        return sql;
+    }
+
+    /**
+     * 获取参数值
+     */
+    private Object getParameterValue(Object parameterObject, String propertyName) {
+        if (parameterObject == null) {
+            return null;
+        }
+
+        if (parameterObject instanceof Map) {
+            Map<?, ?> paramMap = (Map<?, ?>) parameterObject;
+            return paramMap.get(propertyName);
+        } else {
+            // 单个参数或实体对象
+            try {
+                // 尝试通过反射获取属性值
+                java.lang.reflect.Field field = parameterObject.getClass().getDeclaredField(propertyName);
+                field.setAccessible(true);
+                return field.get(parameterObject);
+            } catch (Exception e) {
+                // 尝试getter方法
+                try {
+                    String getterName = "get" + propertyName.substring(0, 1).toUpperCase() + propertyName.substring(1);
+                    java.lang.reflect.Method getter = parameterObject.getClass().getMethod(getterName);
+                    return getter.invoke(parameterObject);
+                } catch (Exception ex) {
+                    return parameterObject;
+                }
+            }
+        }
+    }
+
+    /**
+     * 格式化参数值用于SQL
+     */
+    private String formatParameterValue(Object value) {
+        if (value == null) {
+            return "NULL";
+        }
+
+        if (value instanceof String) {
+            return "'" + value.toString().replace("'", "''") + "'";
+        } else if (value instanceof Number) {
+            return value.toString();
+        } else if (value instanceof Boolean) {
+            return value.toString();
+        } else if (value instanceof Date) {
+            return "'" + value.toString() + "'";
+        } else {
+            return "'" + value.toString().replace("'", "''") + "'";
+        }
     }
 
     /**
