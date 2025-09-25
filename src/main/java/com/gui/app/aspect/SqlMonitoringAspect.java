@@ -67,24 +67,30 @@ public class SqlMonitoringAspect {
             long requestStartTime, long requestEndTime,
             ProceedingJoinPoint joinPoint, boolean requestSuccess) {
         try {
-            Map<String, Object> summaryData = new HashMap<>();
-            summaryData.put("type", "SQL_SUMMARY");
-            summaryData.put("requestId", requestId);
-            summaryData.put("timestamp", new Date());
-            summaryData.put("className", joinPoint.getTarget().getClass().getSimpleName());
-            summaryData.put("methodName", joinPoint.getSignature().getName());
-            summaryData.put("requestSuccess", requestSuccess);
-            summaryData.put("totalRequestTime", requestEndTime - requestStartTime);
+            // 只记录请求级别的汇总信息，不重复记录单个SQL
+            // 单个SQL的执行记录已经在SqlLoggingInterceptor中处理了
+            logRequestSummary(requestId, sqlExecutions, requestStartTime, requestEndTime, joinPoint, requestSuccess);
 
-            // SQL执行统计
+        } catch (Exception e) {
+            logger.error("Failed to log SQL summary for request: " + requestId, e);
+        }
+    }
+
+    /**
+     * 记录请求级别的汇总信息
+     */
+    private void logRequestSummary(String requestId,
+            List<SqlLoggingInterceptor.SqlExecutionInfo> sqlExecutions,
+            long requestStartTime, long requestEndTime,
+            ProceedingJoinPoint joinPoint, boolean requestSuccess) {
+        try {
+            // 统计非SELECT语句
             int totalSqlCount = 0;
             int successfulSqlCount = 0;
             int failedSqlCount = 0;
             long totalSqlExecutionTime = 0;
             long minSqlTime = Long.MAX_VALUE;
             long maxSqlTime = 0;
-
-            List<Map<String, Object>> sqlDetails = new ArrayList<>();
 
             for (SqlLoggingInterceptor.SqlExecutionInfo sqlInfo : sqlExecutions) {
                 // 跳过SELECT语句的记录
@@ -105,58 +111,55 @@ public class SqlMonitoringAspect {
                 totalSqlExecutionTime += executionTime;
                 minSqlTime = Math.min(minSqlTime, executionTime);
                 maxSqlTime = Math.max(maxSqlTime, executionTime);
+            }
 
-                // 构建每条SQL的详细信息
-                Map<String, Object> sqlDetail = new HashMap<>();
-                sqlDetail.put("sql", sqlInfo.getSql());
-                sqlDetail.put("executionTime", executionTime);
-                sqlDetail.put("success", sqlInfo.isSuccess());
+            // 只有当有非SELECT语句时才记录汇总信息
+            if (totalSqlCount > 0) {
+                Map<String, Object> summaryData = new HashMap<>();
+                summaryData.put("type", "REQUEST_SUMMARY");
+                summaryData.put("requestId", requestId);
+                summaryData.put("timestamp", new Date());
+                summaryData.put("className", joinPoint.getTarget().getClass().getSimpleName());
+                summaryData.put("methodName", joinPoint.getSignature().getName());
+                summaryData.put("requestSuccess", requestSuccess);
+                summaryData.put("totalRequestTime", requestEndTime - requestStartTime);
 
-                if (!sqlInfo.isSuccess()) {
-                    sqlDetail.put("errorMessage", sqlInfo.getErrorMessage());
-                } else {
-                    sqlDetail.put("resultInfo", sqlInfo.getResultInfo());
+                // 添加统计信息
+                Map<String, Object> statistics = new HashMap<>();
+                statistics.put("totalCount", totalSqlCount);
+                statistics.put("successCount", successfulSqlCount);
+                statistics.put("failedCount", failedSqlCount);
+                statistics.put("totalExecutionTime", totalSqlExecutionTime);
+                statistics.put("averageExecutionTime", totalSqlCount > 0 ? totalSqlExecutionTime / totalSqlCount : 0);
+                statistics.put("minExecutionTime", minSqlTime == Long.MAX_VALUE ? 0 : minSqlTime);
+                statistics.put("maxExecutionTime", maxSqlTime);
+
+                summaryData.put("sqlStatistics", statistics);
+
+                // 性能分析
+                Map<String, Object> performance = new HashMap<>();
+                performance.put("sqlTimePercentage",
+                        requestEndTime - requestStartTime > 0
+                                ? (double) totalSqlExecutionTime / (requestEndTime - requestStartTime) * 100
+                                : 0);
+                performance.put("averageSqlTime", totalSqlCount > 0 ? totalSqlExecutionTime / totalSqlCount : 0);
+
+                summaryData.put("performance", performance);
+
+                logger.info(objectMapper.writeValueAsString(summaryData));
+
+                // 如果有慢SQL或失败的SQL，记录警告日志
+                if (failedSqlCount > 0) {
+                    logger.warn("Request {} has {} failed SQL executions", requestId, failedSqlCount);
                 }
 
-                sqlDetails.add(sqlDetail);
-            }
-
-            // 添加统计信息
-            Map<String, Object> statistics = new HashMap<>();
-            statistics.put("totalCount", totalSqlCount);
-            statistics.put("successCount", successfulSqlCount);
-            statistics.put("failedCount", failedSqlCount);
-            statistics.put("totalExecutionTime", totalSqlExecutionTime);
-            statistics.put("averageExecutionTime", totalSqlCount > 0 ? totalSqlExecutionTime / totalSqlCount : 0);
-            statistics.put("minExecutionTime", minSqlTime == Long.MAX_VALUE ? 0 : minSqlTime);
-            statistics.put("maxExecutionTime", maxSqlTime);
-
-            summaryData.put("sqlStatistics", statistics);
-            summaryData.put("sqlDetails", sqlDetails);
-
-            // 性能分析
-            Map<String, Object> performance = new HashMap<>();
-            performance.put("sqlTimePercentage",
-                    requestEndTime - requestStartTime > 0
-                            ? (double) totalSqlExecutionTime / (requestEndTime - requestStartTime) * 100
-                            : 0);
-            performance.put("averageSqlTime", totalSqlCount > 0 ? totalSqlExecutionTime / totalSqlCount : 0);
-
-            summaryData.put("performance", performance);
-
-            logger.info(objectMapper.writeValueAsString(summaryData));
-
-            // 如果有慢SQL或失败的SQL，记录警告日志
-            if (failedSqlCount > 0) {
-                logger.warn("Request {} has {} failed SQL executions", requestId, failedSqlCount);
-            }
-
-            if (maxSqlTime > 1000) { // 超过1秒的SQL
-                logger.warn("Request {} has slow SQL execution: {} ms", requestId, maxSqlTime);
+                if (maxSqlTime > 1000) { // 超过1秒的SQL
+                    logger.warn("Request {} has slow SQL execution: {} ms", requestId, maxSqlTime);
+                }
             }
 
         } catch (Exception e) {
-            logger.error("Failed to log SQL summary for request: " + requestId, e);
+            logger.error("Failed to log request summary for request: " + requestId, e);
         }
     }
 }
