@@ -1,10 +1,7 @@
 package com.gui.app.interceptor;
 
 import com.fasterxml.jackson.databind.ObjectMapper;
-import com.gui.app.service.DatabaseAuditService;
 import org.apache.ibatis.executor.statement.StatementHandler;
-import org.apache.ibatis.mapping.BoundSql;
-import org.apache.ibatis.mapping.ParameterMapping;
 import org.apache.ibatis.plugin.*;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
@@ -34,9 +31,6 @@ public class SqlLoggingInterceptor implements Interceptor {
 
     @Autowired
     private ObjectMapper objectMapper;
-
-    @Autowired
-    private DatabaseAuditService databaseAuditService;
 
     // 存储每个请求的SQL执行信息
     private static final Map<String, List<SqlExecutionInfo>> REQUEST_SQL_MAP = new ConcurrentHashMap<>();
@@ -99,22 +93,6 @@ public class SqlLoggingInterceptor implements Interceptor {
 
             // 记录单条SQL日志
             logSqlExecution(requestId, sqlInfo);
-
-            // 集成新的数据库审计系统
-            try {
-                BoundSql boundSql = statementHandler.getBoundSql();
-                List<Object> parameters = extractParameters(boundSql);
-
-                databaseAuditService.recordSqlExecution(
-                        cleanSql,
-                        parameters,
-                        executionTime,
-                        exception == null,
-                        exception != null ? exception.getMessage() : null,
-                        result);
-            } catch (Exception e) {
-                logger.warn("Failed to record SQL execution in audit system", e);
-            }
         }
     }
 
@@ -157,71 +135,6 @@ public class SqlLoggingInterceptor implements Interceptor {
         }
 
         return result.toString();
-    }
-
-    /**
-     * 从BoundSql中提取参数
-     */
-    private List<Object> extractParameters(BoundSql boundSql) {
-        List<Object> parameters = new ArrayList<>();
-
-        try {
-            Object parameterObject = boundSql.getParameterObject();
-            List<ParameterMapping> parameterMappings = boundSql.getParameterMappings();
-
-            if (parameterObject != null && parameterMappings != null && !parameterMappings.isEmpty()) {
-                if (parameterObject instanceof Map) {
-                    Map<?, ?> paramMap = (Map<?, ?>) parameterObject;
-                    for (ParameterMapping parameterMapping : parameterMappings) {
-                        String propertyName = parameterMapping.getProperty();
-                        if (paramMap.containsKey(propertyName)) {
-                            parameters.add(paramMap.get(propertyName));
-                        }
-                    }
-                } else {
-                    // 单个参数或实体对象
-                    if (parameterMappings.size() == 1) {
-                        parameters.add(parameterObject);
-                    } else {
-                        // 多个参数，尝试通过反射获取
-                        for (ParameterMapping parameterMapping : parameterMappings) {
-                            try {
-                                String propertyName = parameterMapping.getProperty();
-                                Object value = getPropertyValue(parameterObject, propertyName);
-                                parameters.add(value);
-                            } catch (Exception e) {
-                                parameters.add("unknown");
-                            }
-                        }
-                    }
-                }
-            }
-        } catch (Exception e) {
-            logger.debug("Failed to extract parameters", e);
-        }
-
-        return parameters;
-    }
-
-    /**
-     * 通过反射获取对象属性值
-     */
-    private Object getPropertyValue(Object obj, String propertyName) throws Exception {
-        if (obj == null || propertyName == null) {
-            return null;
-        }
-
-        // 尝试直接访问字段
-        try {
-            java.lang.reflect.Field field = obj.getClass().getDeclaredField(propertyName);
-            field.setAccessible(true);
-            return field.get(obj);
-        } catch (NoSuchFieldException e) {
-            // 尝试getter方法
-            String getterName = "get" + propertyName.substring(0, 1).toUpperCase() + propertyName.substring(1);
-            java.lang.reflect.Method getter = obj.getClass().getMethod(getterName);
-            return getter.invoke(obj);
-        }
     }
 
     /**
